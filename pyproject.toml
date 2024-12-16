@@ -1,0 +1,24 @@
+[project]
+name = "autotrader"
+version = "0.1.0"
+description = "Large-scale programmatic trading automation."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "backtrader",
+    "bandit>=1.8.0",
+    "numpy==1.24.1",
+    "optuna>=4.1.0",
+    "plotly>=5.24.1",
+    "pyarrow==17.0.0",
+    "pydantic>=2.10.3",
+    "ruff>=0.8.2",
+    "scipy>=1.14.1",
+    "streamlit>=1.41.0",
+    "torch==2.2.2",
+    "watchdog>=6.0.0",
+    "yfinance>=0.2.50",
+]
+
+[tool.uv.sources]
+backtrader = { git = "https://github.com/backtrader2/backtrader" }
