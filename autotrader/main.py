@@ -12,20 +12,28 @@ from autotrader.visualization_backtesting import plot_backtest_results
 # Configuration
 data_config = DataConfig(
     source="yahoo",
-    ticker="MSFT",
+    ticker="BTC-USD",
     start_date="2024-12-01T00:00:00",
     end_date="2024-12-08T00:00:00",
     interval="1m",
 )
 backtest_config = BacktestConfig(
-    data_config=data_config, cash=100000.0, commission=0.0, stake=1
+    data_config=data_config, cash=1000000.0, commission=0.0, stake=1
 )
 
 # ------------------------------------------------------------
 # CASE 1: Run single backtest
 # ------------------------------------------------------------
 dataset = Dataset.from_config(data_config)
-backtest_output = run_coarse_backtest(backtest_config, dataset, MeanReversionStrategy)
+strategy_params = {
+    "bb_period": 82,
+    "devfactor": 1.8398294282578231,
+    "stop_loss_pct": 0.14999999999999997,
+    "take_profit_pct": 0.15,
+}
+backtest_output = run_coarse_backtest(
+    backtest_config, dataset, MeanReversionStrategy, strategy_params
+)
 
 for k, v in backtest_output["analysis_results"].items():
     print(k)
@@ -45,7 +53,7 @@ for k, v in backtest_output["analysis_results"].items():
 # ------------------------------------------------------------
 # Optimize strategy parameters
 optimization_results = optimize_strategy_params_on_backtest(
-    data_config, backtest_config, MeanReversionStrategy, n_trials=50
+    data_config, backtest_config, MeanReversionStrategy, n_trials=1000
 )
 
 # Unpack results
@@ -53,7 +61,9 @@ study = optimization_results["study"]
 trial_details = optimization_results["trial_details"]
 results_df = optimization_results["results_df"]
 
+print("Trial details")
 print(trial_details)
+print("\nResults DataFrame")
 print(results_df)
 
 # Print best results

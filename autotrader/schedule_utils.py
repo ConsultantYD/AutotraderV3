@@ -28,9 +28,39 @@ def is_datetime_in_cron_range(timestamp: dt.datetime, cron_expr: str) -> bool:
     return prev_time == timestamp or next_time == timestamp
 
 
+def is_datetime_in_any_cron_range(
+    timestamp: dt.datetime, cron_ranges: list[str]
+) -> bool:
+    """
+    Check if a given datetime matches any cron expression in a list.
+
+    Args:
+        timestamp (datetime): The datetime to check.
+        cron_ranges (list[str]): A list of cron expressions to match against.
+
+    Returns:
+        bool: True if the datetime matches any of the cron expressions, False otherwise.
+    """
+    return any(
+        is_datetime_in_cron_range(timestamp, cron_expr) for cron_expr in cron_ranges
+    )
+
+
 # Example usage
 if __name__ == "__main__":
-    cron_expression = "* 9-15 * * 1-5"  # Trading window: 9:00 AM to 3:59 PM on weekdays
-    test_time = dt.datetime(2024, 12, 20, 15, 59)  # Monday at 1:00 PM
+    cron_list = ["15-59 9 * * 1-5", "* 10-13 * * 1-5", "0-30 14 * * 1-5"]
+    exit_cron_list = ["45-59 14 * * 1-5", "* 15-19 * * 1-5", "0-45 20 * * 1-5"]
+    t = dt.datetime(2024, 12, 17, 0, 0)
 
-    print(is_datetime_in_cron_range(test_time, cron_expression))  # Output: True
+    print("OPENING HOURS")
+    while t < dt.datetime(2024, 12, 24, 0, 0):
+        if is_datetime_in_any_cron_range(t, cron_list):
+            print(t)
+        t += dt.timedelta(minutes=1)
+
+    print("\nCLOSING HOURS")
+    t = dt.datetime(2024, 12, 17, 0, 0)
+    while t < dt.datetime(2024, 12, 24, 0, 0):
+        if not is_datetime_in_any_cron_range(t, exit_cron_list):
+            print("exit at ", t)
+        t += dt.timedelta(minutes=1)
