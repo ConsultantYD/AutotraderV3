@@ -12,9 +12,21 @@ from autotrader.events import (
     SellOrderRejection,
     SellOrderSubmission,
 )
+from schedule_utils import is_datetime_in_any_cron_range
 
 
 class BaseStrategy(bt.Strategy):
+    params = (
+        (
+            "open_schedules",
+            ["45-59 14 * * 1-5", "* 15-19 * * 1-5", "0-30 20 * * 1-5"],
+        ),  # List of cron expressions for opening positions
+        (
+            "pending_position_schedules",
+            ["45-59 14 * * 1-5", "* 15-19 * * 1-5", "0-45 20 * * 1-5"],
+        ),  # List of cron expressions for keeping positions open
+    )
+
     def __init__(self):
         self.data_log = []  # To store data logs
         self.event_log = []  # To store events
@@ -117,14 +129,41 @@ class BaseStrategy(bt.Strategy):
             }
         )
 
+        current_time = self.datas[0].datetime.datetime(0)
+        # print()
+        # print(current_time)
+
+        # Only one open position at a time
         if self.order:
+            # print("Order in progress. Skipping next iteration.")
+            return
+
+        # Close pending positions if outside pending position schedules
+        if self.position and self.should_close_pending_positions(current_time):
+            # print("Closing position outside schedule.")
+            if self.current_submission_id is None:
+                raise ValueError("Submission ID is missing for SellOrderSubmission.")
+
+            self.order = self.sell()
+            self.order.submission_id = self.current_submission_id
+            # print(self.order)
+            self.event_log.append(
+                SellOrderSubmission(
+                    timestamp=self.datas[0].datetime.datetime(0),
+                    submission_id=self.current_submission_id,
+                    size=self.order.created.size,
+                    ref_price=self.dataclose[0],
+                    justification="Closing position outside schedule.",
+                )
+            )
             return
 
         # Call the child class methods for buy/sell conditions
         buy_signal, buy_justification = self.should_buy()
         sell_signal, sell_justification = self.should_sell()
 
-        if not self.position and buy_signal:
+        if not self.position and buy_signal and self.can_open_position(current_time):
+            # print("Buy signal detected.")
             self.current_submission_id = (
                 uuid.uuid4().int
             )  # Generate submission_id for BuyOrderSubmission
@@ -140,6 +179,7 @@ class BaseStrategy(bt.Strategy):
                 )
             )
         elif self.position and sell_signal:
+            # print("Sell signal detected.")
             if self.current_submission_id is None:
                 raise ValueError("Submission ID is missing for SellOrderSubmission.")
 
@@ -155,10 +195,21 @@ class BaseStrategy(bt.Strategy):
                 )
             )
         else:
+            # print("No action taken.")
             # Log NoAction if no conditions are met
             self.event_log.append(
                 NoAction(timestamp=self.datas[0].datetime.datetime(0))
             )
+
+    def can_open_position(self, timestamp) -> bool:
+        """Check if current time is within open schedules."""
+        return is_datetime_in_any_cron_range(timestamp, self.params.open_schedules)
+
+    def should_close_pending_positions(self, timestamp):
+        """Check if current time is outside pending position schedules."""
+        return not is_datetime_in_any_cron_range(
+            timestamp, self.params.pending_position_schedules
+        )
 
     def should_buy(self):
         """Child classes should override to define buy logic. Returns (bool, justification)."""
@@ -171,6 +222,11 @@ class BaseStrategy(bt.Strategy):
         raise NotImplementedError(
             "Please implement the sell condition in the child class."
         )
+
+    def close_positions(self):
+        """Close all positions."""
+        if self.position:
+            self.sell()
 
 
 class DemoStrategy(BaseStrategy):
@@ -202,7 +258,7 @@ class MeanReversionStrategy(BaseStrategy):
     def get_hyperparam_space(cls):
         return {
             "bb_period": {"type": "int", "min": 1, "max": 500},
-            "devfactor": {"type": "float", "min": 1, "max": 4.0},
+            "devfactor": {"type": "float", "min": 1.0, "max": 4.0},
             "stop_loss_pct": {"type": "float", "min": 0.0001, "max": 0.15},
             "take_profit_pct": {"type": "float", "min": 0.0001, "max": 0.15},
         }
